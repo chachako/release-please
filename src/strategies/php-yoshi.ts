@@ -16,7 +16,6 @@ import {BaseStrategy, BuildUpdatesOptions, BaseStrategyOptions} from './base';
 import {Update} from '../update';
 import {Changelog} from '../updaters/changelog';
 import {RootComposerUpdatePackages} from '../updaters/php/root-composer-update-packages';
-import {PHPManifest} from '../updaters/php/php-manifest';
 import {PHPClientVersion} from '../updaters/php/php-client-version';
 import {VersionsMap, Version} from '../version';
 import {Commit, parseConventionalCommits} from '../commit';
@@ -30,6 +29,7 @@ import {BranchName} from '../util/branch-name';
 import {PullRequestBody} from '../util/pull-request-body';
 import {GitHubFileContents} from '@google-automations/git-file-utils';
 import {FileNotFoundError} from '../errors';
+import {BumpReleaseOptions} from '../strategy';
 
 const CHANGELOG_SECTIONS = [
   {type: 'feat', section: 'Features'},
@@ -69,15 +69,25 @@ export class PHPYoshi extends BaseStrategy {
     commits: Commit[],
     latestRelease?: Release,
     draft?: boolean,
-    labels: string[] = []
+    labels: string[] = [],
+    bumpOnlyOptions?: BumpReleaseOptions
   ): Promise<ReleasePullRequest | undefined> {
     const conventionalCommits = await this.postProcessCommits(
       parseConventionalCommits(commits, this.logger)
     );
-    if (conventionalCommits.length === 0) {
+    if (!bumpOnlyOptions && conventionalCommits.length === 0) {
       this.logger.info(`No commits for path: ${this.path}, skipping`);
       return undefined;
     }
+
+    const versionOverrides: {[key: string]: string} = {};
+    commits.forEach(commit => {
+      Object.entries(
+        parseVersionOverrides(commit.pullRequest?.body || '')
+      ).forEach(([directory, version]) => {
+        versionOverrides[directory] = version;
+      });
+    });
 
     const newVersion = latestRelease
       ? await this.versioningStrategy.bump(
@@ -91,7 +101,12 @@ export class PHPYoshi extends BaseStrategy {
     const versionsMap: VersionsMap = new Map();
     const directoryVersionContents: Record<string, ComponentInfo> = {};
     const component = await this.getComponent();
-    const newVersionTag = new TagName(newVersion, component);
+    const newVersionTag = new TagName(
+      newVersion,
+      component,
+      this.tagSeparator,
+      this.includeVInTag
+    );
     let releaseNotesBody = `## ${newVersion.toString()}`;
     for (const directory of topLevelDirectories) {
       try {
@@ -99,7 +114,6 @@ export class PHPYoshi extends BaseStrategy {
           this.addPath(`${directory}/VERSION`),
           this.targetBranch
         );
-        const version = Version.parse(contents.parsedContent);
         const composer = await this.github.getFileJson<ComposerJson>(
           this.addPath(`${directory}/composer.json`),
           this.targetBranch
@@ -108,10 +122,12 @@ export class PHPYoshi extends BaseStrategy {
           versionContents: contents,
           composer,
         };
-        const newVersion = await this.versioningStrategy.bump(
-          version,
-          splitCommits[directory]
-        );
+        const newVersion = versionOverrides[directory]
+          ? Version.parse(versionOverrides[directory])
+          : await this.versioningStrategy.bump(
+              Version.parse(contents.parsedContent),
+              splitCommits[directory]
+            );
         versionsMap.set(composer.name, newVersion);
         const partialReleaseNotes = await this.changelogNotes.buildNotes(
           splitCommits[directory],
@@ -168,6 +184,13 @@ export class PHPYoshi extends BaseStrategy {
         createIfMissing: false,
         cachedFileContents: componentInfo.versionContents,
         updater: new DefaultUpdater({
+          version,
+        }),
+      });
+      updates.push({
+        path: this.addPath(`${directory}/composer.json`),
+        createIfMissing: false,
+        updater: new RootComposerUpdatePackages({
           version,
         }),
       });
@@ -242,8 +265,16 @@ export class PHPYoshi extends BaseStrategy {
       }),
     });
 
-    // update the aggregate package information in the root
-    // composer.json and manifest.json.
+    // update VERSION file
+    updates.push({
+      path: this.addPath('VERSION'),
+      createIfMissing: false,
+      updater: new DefaultUpdater({
+        version,
+      }),
+    });
+
+    // update the aggregate package information in the root composer.json
     updates.push({
       path: this.addPath('composer.json'),
       createIfMissing: false,
@@ -253,35 +284,25 @@ export class PHPYoshi extends BaseStrategy {
       }),
     });
 
-    updates.push({
-      path: this.addPath('docs/manifest.json'),
-      createIfMissing: false,
-      updater: new PHPManifest({
-        version,
-        versionsMap,
-      }),
-    });
-
-    updates.push({
-      path: this.addPath('src/Version.php'),
-      createIfMissing: false,
-      updater: new PHPClientVersion({
-        version,
-        versionsMap,
-      }),
-    });
-
-    updates.push({
-      path: this.addPath('src/ServiceBuilder.php'),
-      createIfMissing: false,
-      updater: new PHPClientVersion({
-        version,
-        versionsMap,
-      }),
-    });
-
     return updates;
   }
+}
+
+function parseVersionOverrides(body: string): {[key: string]: string} {
+  // look for 'BEGIN_VERSION_OVERRIDE' section of pull request body
+  const versionOverrides: {[key: string]: string} = {};
+  if (body) {
+    const overrideMessage = (body.split('BEGIN_VERSION_OVERRIDE')[1] || '')
+      .split('END_VERSION_OVERRIDE')[0]
+      .trim();
+    if (overrideMessage) {
+      overrideMessage.split('\n').forEach(line => {
+        const [directory, version] = line.split(':');
+        versionOverrides[directory.trim()] = version.trim();
+      });
+    }
+  }
+  return versionOverrides;
 }
 
 function updatePHPChangelogEntry(

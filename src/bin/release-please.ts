@@ -63,6 +63,7 @@ interface ManifestArgs {
 interface VersioningArgs {
   bumpMinorPreMajor?: boolean;
   bumpPatchForMinorPreMajor?: boolean;
+  prereleaseType?: string;
   releaseAs?: string;
 
   // only for Ruby: TODO replace with generic bootstrap option
@@ -114,6 +115,8 @@ interface TaggingArgs {
   monorepoTags?: boolean;
   pullRequestTitlePattern?: string;
   pullRequestHeader?: string;
+  pullRequestFooter?: string;
+  componentNoSpace?: boolean;
 }
 
 interface CreatePullRequestArgs
@@ -275,6 +278,10 @@ function pullRequestStrategyOptions(yargs: yargs.Argv): yargs.Argv {
       default: false,
       type: 'boolean',
     })
+    .option('prerelease-type', {
+      describe: 'type of the prerelease, e.g., alpha',
+      type: 'string',
+    })
     .option('extra-files', {
       describe: 'extra files for the strategy to consider',
       type: 'string',
@@ -414,6 +421,16 @@ function taggingOptions(yargs: yargs.Argv): yargs.Argv {
     .option('pull-request-header', {
       describe: 'Header for release PR',
       type: 'string',
+    })
+    .option('pull-request-footer', {
+      describe: 'Footer for release PR',
+      type: 'string',
+    })
+    .option('component-no-space', {
+      describe:
+        'release-please automatically adds ` ` (space) in front of parsed ${component}. Should this be disabled?',
+      type: 'boolean',
+      default: false,
     });
 }
 
@@ -447,11 +464,14 @@ const createReleasePullRequestCommand: yargs.CommandModule<
           draftPullRequest: argv.draftPullRequest,
           bumpMinorPreMajor: argv.bumpMinorPreMajor,
           bumpPatchForMinorPreMajor: argv.bumpPatchForMinorPreMajor,
+          prereleaseType: argv.prereleaseType,
           changelogPath: argv.changelogPath,
           changelogType: argv.changelogType,
           changelogHost: argv.changelogHost,
           pullRequestTitlePattern: argv.pullRequestTitlePattern,
           pullRequestHeader: argv.pullRequestHeader,
+          pullRequestFooter: argv.pullRequestFooter,
+          componentNoSpace: argv.componentNoSpace,
           changelogSections: argv.changelogSections,
           releaseAs: argv.releaseAs,
           versioning: argv.versioningStrategy,
@@ -711,6 +731,7 @@ const bootstrapCommand: yargs.CommandModule<{}, BootstrapArgs> = {
       draftPullRequest: argv.draftPullRequest,
       bumpMinorPreMajor: argv.bumpMinorPreMajor,
       bumpPatchForMinorPreMajor: argv.bumpPatchForMinorPreMajor,
+      prereleaseType: argv.prereleaseType,
       changelogPath: argv.changelogPath,
       changelogHost: argv.changelogHost,
       changelogSections: argv.changelogSections,

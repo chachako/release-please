@@ -75,6 +75,8 @@ function releaserConfigToJsonConfig(
     'changelog-host': config.changelogHost,
     'pull-request-title-pattern': config.pullRequestTitlePattern,
     'pull-request-header': config.pullRequestHeader,
+    'pull-request-footer': config.pullRequestFooter,
+    'component-no-space': config.componentNoSpace,
     'separate-pull-requests': config.separatePullRequests,
     'tag-separator': config.tagSeparator,
     'extra-files': config.extraFiles,

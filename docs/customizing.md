@@ -44,6 +44,7 @@ version given a list of parsed commits.
 | `always-bump-minor` | Always bump minor version |                                                                                                                                                                    |
 | `always-bump-major` | Always bump major version |                                                                                  
 | `service-pack`      | Designed for Java backport fixes. Uses Maven's specification for service pack versions (e.g. 1.2.3-sp.1)    |
+| `prerelease`      | Bumping prerelease number (eg. 1.2.0-beta01 to 1.2.0-beta02) or if prerelease type is set, using that in the prerelease part (eg. 1.2.1 to 1.3.0-beta)  |
 
 ### Adding additional versioning strategy types
 
@@ -100,7 +101,13 @@ title or body format).
 
 The default pull request title uses this pattern:
 `chore${scope}: release${component} ${version}` so a common release pull
-request title would be `chore(main): release foo-bar v1.2.3`.
+request title would be `chore(main): release foo-bar v1.2.3`.  
+Please note that by default `${component}` will be parsed to ` ${component}` (With space in front of). 
+If you wish to avoid that, consider using `component-no-space: true`/`--component-no-space=true` parameter.
+
+> [!WARNING]  
+> Setting `component-no-space` option when release PR already exists might break the parsing
+> resulting in another PR being opened.
 
 | Pattern | Description |
 | ------- | ----------- |
@@ -117,6 +124,15 @@ option in the manifest configuration.
 
 By default, the pull request header is:
 `:robot: I have created a release *beep* *boop*`.
+
+### Pull Request Footer
+
+If you would like to customize the pull request footer, you can use the
+`--pull-request-footer` CLI option or the `pull-request-footer`
+option in the manifest configuration.
+
+By default, the pull request footer is:
+`This PR was generated with Release Please. See documentation.`.
 
 ## Release Lifecycle Labels
 
@@ -172,7 +188,24 @@ You can annotate a block by starting with a line containing:
 and close the block with a line containing `x-release-please-end`. Within
 the block, we will attempt to replace version values.
 
+Default updaters are applied depending on the file extension. If you want to
+force the [Generic](/src/updaters/generic.ts) updater, you must use type
+`"generic"`.
+
+```json
+{
+  "extra-files": [
+    {
+      "type": "generic",
+      "path": "path/to/file.yml"
+    }
+  ]
+}
+```
+
 ## Updating arbitrary JSON files
+
+For files with the `.json` extension, the `version` property is updated.
 
 For most release strategies, you can provide additional files to update
 using the [GenericJson](/src/updaters/generic-json.ts) updater. You can
@@ -197,6 +230,8 @@ informs release-please on which JSON field to update with the new version.
 
 ## Updating arbitrary XML files
 
+For files with the `.xml` extension, the `version` element is updated.
+
 For most release strategies, you can provide additional files to update
 using the [GenericXml](/src/updaters/generic-xml.ts) updater. You can
 specify a configuration object in the `extra-files` option in the manifest
@@ -216,6 +251,9 @@ configuration.
 
 ## Updating arbitrary YAML files
 
+For files with the `.yaml` or `.yml` extension, the `version` property is
+updated.
+
 For most release strategies, you can provide additional files to update
 using the [GenericYaml](/src/updaters/generic-yaml.ts) updater. You can
 specify a configuration object in the `extra-files` option in the manifest
@@ -234,6 +272,8 @@ configuration.
 ```
 
 ## Updating arbitrary TOML files
+
+For files with the `.toml` extension, the `version` property is updated.
 
 For most release strategies, you can provide additional files to update
 using the [GenericToml](/src/updaters/generic-toml.ts) updater. You can

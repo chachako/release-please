@@ -25,6 +25,7 @@ import {LinkedVersions} from '../../src/plugins/linked-versions';
 import {ManifestPlugin} from '../../src/plugin';
 import {GitHub} from '../../src';
 import {GroupPriority} from '../../src/plugins/group-priority';
+import {NodeWorkspace} from '../../src/plugins/node-workspace';
 
 describe('PluginFactory', () => {
   let github: GitHub;
@@ -53,6 +54,7 @@ describe('PluginFactory', () => {
           targetBranch: 'target-branch',
           repositoryConfig,
           manifestPath: '.manifest.json',
+          separatePullRequests: false,
         });
         expect(plugin).to.not.be.undefined;
       });
@@ -65,6 +67,7 @@ describe('PluginFactory', () => {
           targetBranch: 'target-branch',
           repositoryConfig,
           manifestPath: '.manifest.json',
+          separatePullRequests: false,
         })
       ).to.throw();
     });
@@ -79,6 +82,7 @@ describe('PluginFactory', () => {
         targetBranch: 'target-branch',
         repositoryConfig,
         manifestPath: '.manifest.json',
+        separatePullRequests: false,
       });
       expect(plugin).to.not.be.undefined;
       expect(plugin).instanceof(LinkedVersions);
@@ -93,9 +97,25 @@ describe('PluginFactory', () => {
         targetBranch: 'target-branch',
         repositoryConfig,
         manifestPath: '.manifest.json',
+        separatePullRequests: false,
       });
       expect(plugin).to.not.be.undefined;
       expect(plugin).instanceof(GroupPriority);
+    });
+    it('should build workspace options', () => {
+      const plugin = buildPlugin({
+        github,
+        type: {
+          type: 'node-workspace',
+          updatePeerDependencies: true,
+        },
+        targetBranch: 'target-branch',
+        repositoryConfig,
+        manifestPath: '.manifest.json',
+        separatePullRequests: false,
+      });
+      expect(plugin).to.not.be.undefined;
+      expect(plugin).instanceof(NodeWorkspace);
     });
   });
   describe('getPluginTypes', () => {
@@ -136,6 +156,7 @@ describe('PluginFactory', () => {
         repositoryConfig: {},
         targetBranch: 'main',
         manifestPath: '.manifest.json',
+        separatePullRequests: false,
       };
       const strategy = await buildPlugin(pluginOptions);
       expect(strategy).to.be.instanceof(CustomTest);

@@ -38,6 +38,9 @@ import {BranchName} from '../util/branch-name';
 import {PatchVersionUpdate} from '../versioning-strategy';
 import {CargoLock} from '../updaters/rust/cargo-lock';
 import {ConfigurationError} from '../errors';
+import {Strategy} from '../strategy';
+import {Commit} from '../commit';
+import {Release} from '../release';
 
 interface CrateInfo {
   /**
@@ -79,6 +82,9 @@ interface CrateInfo {
  * into a single rust package.
  */
 export class CargoWorkspace extends WorkspacePlugin<CrateInfo> {
+  private strategiesByPath: Record<string, Strategy> = {};
+  private releasesByPath: Record<string, Release> = {};
+
   protected async buildAllPackages(
     candidates: CandidateReleasePullRequest[]
   ): Promise<{
@@ -233,10 +239,10 @@ export class CargoWorkspace extends WorkspacePlugin<CrateInfo> {
     return existingCandidate;
   }
 
-  protected newCandidate(
+  protected async newCandidate(
     pkg: CrateInfo,
     updatedVersions: VersionsMap
-  ): CandidateReleasePullRequest {
+  ): Promise<CandidateReleasePullRequest> {
     const version = updatedVersions.get(pkg.name);
     if (!version) {
       throw new Error(`Didn't find updated version for ${pkg.name}`);
@@ -252,6 +258,34 @@ export class CargoWorkspace extends WorkspacePlugin<CrateInfo> {
       originalManifest,
       updatedManifest
     );
+
+    const updatedPackage = {
+      ...pkg,
+      version: version.toString(),
+    };
+
+    const strategy = this.strategiesByPath[updatedPackage.path];
+    const latestRelease = this.releasesByPath[updatedPackage.path];
+    const basePullRequest = strategy
+      ? await strategy.buildReleasePullRequest([], latestRelease, false, [], {
+          newVersion: version,
+        })
+      : undefined;
+
+    if (basePullRequest) {
+      return this.updateCandidate(
+        {
+          path: pkg.path,
+          pullRequest: basePullRequest,
+          config: {
+            releaseType: 'rust',
+          },
+        },
+        pkg,
+        updatedVersions
+      );
+    }
+
     const pullRequest: ReleasePullRequest = {
       title: PullRequestTitle.ofTargetBranch(this.targetBranch),
       body: new PullRequestBody([
@@ -366,6 +400,18 @@ export class CargoWorkspace extends WorkspacePlugin<CrateInfo> {
 
   protected pathFromPackage(pkg: CrateInfo): string {
     return pkg.path;
+  }
+
+  async preconfigure(
+    strategiesByPath: Record<string, Strategy>,
+    _commitsByPath: Record<string, Commit[]>,
+    _releasesByPath: Record<string, Release>
+  ): Promise<Record<string, Strategy>> {
+    // Using preconfigure to siphon releases and strategies.
+    this.strategiesByPath = strategiesByPath;
+    this.releasesByPath = _releasesByPath;
+
+    return strategiesByPath;
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,25 +16,22 @@ import {readFileSync} from 'fs';
 import {resolve} from 'path';
 import * as snapshot from 'snap-shot-it';
 import {describe, it} from 'mocha';
-import {PHPManifest} from '../../src/updaters/php/php-manifest';
+import {DescriptionUpdater} from '../../src/updaters/r/description';
 import {Version} from '../../src/version';
 
-const fixturesPath = './test/updaters/fixtures/php';
+const fixturesPath = './test/updaters/fixtures';
 
-describe('PHPManifest', () => {
+describe('DESCRIPTION', () => {
   describe('updateContent', () => {
-    it('update version in docs manifest', async () => {
-      const versions = new Map<string, Version>();
-      versions.set('google/access-context-manager', Version.parse('0.2.0'));
+    it('updates version in DESCRIPTION file', async () => {
       const oldContent = readFileSync(
-        resolve(fixturesPath, './manifest.json'),
+        resolve(fixturesPath, './r/DESCRIPTION'),
         'utf8'
       ).replace(/\r\n/g, '\n');
-      const composer = new PHPManifest({
-        version: Version.parse('0.8.0'),
-        versionsMap: versions,
+      const version = new DescriptionUpdater({
+        version: Version.parse('1.2.3'),
       });
-      const newContent = composer.updateContent(oldContent);
+      const newContent = version.updateContent(oldContent);
       snapshot(newContent);
     });
   });
